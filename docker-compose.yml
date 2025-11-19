@@ -1,0 +1,10 @@
+services:
+  wa-yungbot:
+    build: .
+    container_name: wa-yungbot
+    restart: unless-stopped
+    volumes:
+      - ./session-data:/app/.wwebjs_auth
+      - ./backups:/app/backups
+    environment:
+      - NODE_ENV=production
