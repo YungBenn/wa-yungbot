@@ -25,7 +25,5 @@ RUN mkdir -p .wwebjs_auth backups
 
 VOLUME ["/usr/src/app/.wwebjs_auth", "/usr/src/app/backups"]
 
-ENV NODE_ENV=production
-
 USER bun
 ENTRYPOINT [ "bun", "run", "index.ts" ]
