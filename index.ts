@@ -1,7 +1,7 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const fs = require('node:fs');
-const path = require('node:path');
+import { Client, LocalAuth, type Message, type Chat } from 'whatsapp-web.js';
+import qrcode from 'qrcode-terminal';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const SESSION_DATA_PATH = '.wwebjs_auth';
 const BACKUP_DIR = 'backups';
@@ -11,7 +11,7 @@ if (!fs.existsSync(BACKUP_DIR)) {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
 
-const client = new Client({
+export const client = new Client({
   authStrategy: new LocalAuth({
     clientId: CLIENT_ID,
     dataPath: SESSION_DATA_PATH,
@@ -23,28 +23,28 @@ const client = new Client({
   restartOnAuthFail: false,
 });
 
-let repliedContacts = {};
+let repliedContacts: Record<string, string> = {};
 
 let isAuthenticated = false;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 
-function getTodayDate() {
+function getTodayDate(): string {
   const today = new Date();
-  return today.toISOString().split('T')[0];
+  return today.toISOString().split('T')[0]!;
 }
 
-function hasRepliedToday(contactId) {
+function hasRepliedToday(contactId: string): boolean {
   const today = getTodayDate();
   return repliedContacts[contactId] === today;
 }
 
-function markRepliedToday(contactId) {
+function markRepliedToday(contactId: string): void {
   const today = getTodayDate();
   repliedContacts[contactId] = today;
 }
 
-function cleanOldData() {
+function cleanOldData(): void {
   const today = getTodayDate();
   let cleaned = 0;
 
@@ -60,12 +60,12 @@ function cleanOldData() {
   }
 }
 
-function resetContact(contactId) {
+export function resetContact(contactId: string): void {
   delete repliedContacts[contactId];
   console.log(`Reset tracking for contact: ${contactId}`);
 }
 
-function resetAllContacts() {
+export function resetAllContacts(): void {
   repliedContacts = {};
   console.log('All contact tracking reset');
 }
@@ -75,27 +75,7 @@ setInterval(() => {
   cleanOldData();
 }, 3600000);
 
-function backupSession() {
-  try {
-    if (!fs.existsSync(SESSION_DATA_PATH)) {
-      console.log('⚠️  Session data not found, skip backup');
-      return;
-    }
-
-    const timestamp = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-');
-    const backupPath = path.join(BACKUP_DIR, `session-backup-${timestamp}`);
-
-    copyDirectory(SESSION_DATA_PATH, backupPath);
-
-    console.log(`✅ Session backup successful: ${backupPath}`);
-
-    cleanupOldBackups();
-  } catch (error) {
-    console.error('❌ Error when backing up session:', error.message);
-  }
-}
-
-function copyDirectory(src, dest) {
+function copyDirectory(src: string, dest: string): void {
   if (!fs.existsSync(dest)) {
     fs.mkdirSync(dest, { recursive: true });
   }
@@ -114,10 +94,16 @@ function copyDirectory(src, dest) {
   }
 }
 
+interface BackupInfo {
+  name: string;
+  path: string;
+  time: number;
+}
+
 // Remove old backups, only keep the last 5 backups
-function cleanupOldBackups() {
+function cleanupOldBackups(): void {
   try {
-    const backups = fs
+    const backups: BackupInfo[] = fs
       .readdirSync(BACKUP_DIR)
       .filter((file) => file.startsWith('session-backup-'))
       .map((file) => ({
@@ -135,7 +121,33 @@ function cleanupOldBackups() {
       }
     }
   } catch (error) {
-    console.error('Error when cleaning up backup:', error.message);
+    console.error('Error when cleaning up backup:', (error as Error).message);
+  }
+}
+
+function backupSession(): void {
+  try {
+    if (!fs.existsSync(SESSION_DATA_PATH)) {
+      console.log('⚠️  Session data not found, skip backup');
+      return;
+    }
+
+    const timestamp = new Date()
+      .toISOString()
+      .replaceAll(':', '-')
+      .replaceAll('.', '-');
+    const backupPath = path.join(BACKUP_DIR, `session-backup-${timestamp}`);
+
+    copyDirectory(SESSION_DATA_PATH, backupPath);
+
+    console.log(`✅ Session backup successful: ${backupPath}`);
+
+    cleanupOldBackups();
+  } catch (error) {
+    console.error(
+      '❌ Error when backing up session:',
+      (error as Error).message
+    );
   }
 }
 
@@ -146,7 +158,7 @@ setInterval(() => {
   }
 }, 6 * 60 * 60 * 1000);
 
-client.on('qr', (qr) => {
+client.on('qr', (qr: string) => {
   console.log('\n⚠️  ============================================');
   console.log('⚠️  AUTHENTICATION REQUIRED - SCAN QR CODE');
   console.log('⚠️  ============================================');
@@ -158,7 +170,7 @@ client.on('qr', (qr) => {
   isAuthenticated = false;
 });
 
-client.on('loading_screen', (percent, message) => {
+client.on('loading_screen', (percent: number, message: string) => {
   console.log(`🔄 Loading: ${percent}% - ${message}`);
 });
 
@@ -168,7 +180,16 @@ client.on('authenticated', () => {
   reconnectAttempts = 0;
 });
 
-client.on('auth_failure', (msg) => {
+function restartClient(): void {
+  try {
+    console.log('🔄 Trying to restart client...');
+    client.initialize();
+  } catch (error) {
+    console.error('❌ Error when restarting client:', (error as Error).message);
+  }
+}
+
+client.on('auth_failure', (msg: string) => {
   console.error('\n❌ ============================================');
   console.error('❌ AUTHENTICATION FAILED');
   console.error('❌ ============================================');
@@ -187,7 +208,7 @@ client.on('auth_failure', (msg) => {
   }, 5000);
 });
 
-client.on('disconnected', (reason) => {
+client.on('disconnected', (reason: string) => {
   console.error('\n⚠️  ============================================');
   console.error('⚠️  CLIENT DISCONNECTED');
   console.error('⚠️  ============================================');
@@ -213,15 +234,6 @@ client.on('disconnected', (reason) => {
   }
 });
 
-function restartClient() {
-  try {
-    console.log('🔄 Trying to restart client...');
-    client.initialize();
-  } catch (error) {
-    console.error('❌ Error when restarting client:', error.message);
-  }
-}
-
 client.on('ready', () => {
   console.log('\n✅ ============================================');
   console.log('✅ WHATSAPP BOT READY!');
@@ -238,7 +250,7 @@ client.on('ready', () => {
   cleanOldData();
 });
 
-client.on('message', async (message) => {
+client.on('message', async (message: Message) => {
   try {
     const chat = await message.getChat();
 
@@ -265,7 +277,10 @@ client.on('message', async (message) => {
   }
 });
 
-async function sendDeploymentNotification(groupId, message) {
+export async function sendDeploymentNotification(
+  groupId: string,
+  message: string
+): Promise<boolean> {
   try {
     const chat = await client.getChatById(groupId);
     await chat.sendMessage(message);
@@ -277,9 +292,9 @@ async function sendDeploymentNotification(groupId, message) {
   }
 }
 
-async function listGroups() {
+export async function listGroups() {
   const chats = await client.getChats();
-  const groups = chats.filter((chat) => chat.isGroup);
+  const groups = chats.filter((chat: Chat) => chat.isGroup);
 
   console.log('\n=== WhatsApp Group List ===');
   let index = 1;
@@ -301,11 +316,3 @@ console.log('🚀 Starting WhatsApp Bot initialization...');
 console.log(`📁 Session data path: ${SESSION_DATA_PATH}`);
 console.log(`🆔 Client ID: ${CLIENT_ID}\n`);
 client.initialize();
-
-module.exports = {
-  client,
-  sendDeploymentNotification,
-  listGroups,
-  resetContact,
-  resetAllContacts,
-};

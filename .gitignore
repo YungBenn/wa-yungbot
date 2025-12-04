@@ -1,24 +1,44 @@
-.wwebjs_auth/
-.wwebjs_cache/
+# dependencies
+node_modules
 
-backups/
+# output
+out
+dist
+*.tgz
 
-node_modules/
+# code coverage
+coverage
+*.lcov
 
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# logs
+logs
+_.log
+report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
+# dotenv environment variable files
 .env
+.env.development.local
+.env.test.local
+.env.production.local
 .env.local
-.env.*.local
 
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IntelliJ based IDEs
+.idea
+
+# Cursor
+.cursor
+
+# Finder (MacOS) folder config
 .DS_Store
-Thumbs.db
 
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# session data
+.wwebjs_auth
+.wwebjs_cache
+
+# backups
+backups
