@@ -80,16 +80,29 @@ function copyDirectory(src: string, dest: string): void {
     fs.mkdirSync(dest, { recursive: true });
   }
 
-  const entries = fs.readdirSync(src, { withFileTypes: true });
+  let entries;
+  try {
+    entries = fs.readdirSync(src, { withFileTypes: true });
+  } catch {
+    // Directory may have been deleted during backup
+    return;
+  }
 
   for (const entry of entries) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
 
-    if (entry.isDirectory()) {
-      copyDirectory(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
+    try {
+      if (entry.isDirectory()) {
+        copyDirectory(srcPath, destPath);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    } catch (error) {
+      // Skip files that were deleted during backup (race condition with Puppeteer)
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
     }
   }
 }
@@ -252,24 +265,26 @@ client.on('ready', () => {
 
 client.on('message', async (message: Message) => {
   try {
+    // Skip messages sent by self
+    if (message.fromMe) return;
+
     const chat = await message.getChat();
 
     if (!chat.isGroup) {
-      const contact = await message.getContact();
-      const contactId = contact.id._serialized;
+      // Use message.from instead of getContact() to avoid WhatsApp API incompatibility
+      const contactId = message.from;
 
-      if (!contact.isMe) {
-        if (!hasRepliedToday(contactId)) {
-          await message.reply('[BOT 🤖] Ruben will reply to you shortly');
+      if (!hasRepliedToday(contactId)) {
+        await message.reply('[BOT 🤖] Ruben will reply to you shortly');
 
-          markRepliedToday(contactId);
+        markRepliedToday(contactId);
 
-          console.log(
-            `✅ Auto-reply sent to: ${
-              contact.pushname || contact.number
-            } (${contactId})`
-          );
-        }
+        // Get sender name from message data
+        const msgData = message as unknown as {
+          _data?: { notifyName?: string };
+        };
+        const senderName = msgData._data?.notifyName || contactId;
+        console.log(`✅ Auto-reply sent to: ${senderName} (${contactId})`);
       }
     }
   } catch (error) {
